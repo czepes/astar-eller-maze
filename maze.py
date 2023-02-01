@@ -24,17 +24,6 @@ class EllerMazeCell:
         self.col = col
         self.walls = walls
         self.cell_type = cell_type
-        self.cell_set = None
-
-    def clear_set(self):
-        if self.cell_set:
-            self.cell_set.remove(self)
-        self.cell_set = None
-
-    def set_cell_set(self, cell_set: set[EllerMazeCell]):
-        self.clear_set()
-        cell_set.add(self)
-        self.cell_set = cell_set
 
 
 Walls = NewType('Walls', dict[Literal[
@@ -50,24 +39,58 @@ CellSets = NewType('CellSets', dict[int, CellSet])
 
 MazeRow = NewType('MazeRow', list[EllerMazeCell])
 
-Maze = NewType('Maze', list[MazeRow])
+ListMaze = NewType('Maze', list[MazeRow])
 
 
 class EllerMaze:
     def __init__(self, size: int):
-        self.size: int = size
-        self.maze: Maze = []
+        self.size = min(max(size, 3), 20)
+        self.list_maze: ListMaze = []
         self.sets: CellSets = {}
 
         self.build_maze()
 
+    # Maze building
+
     def build_maze(self):
-        row = []
+        row: MazeRow = []
+
+        self.sets.clear()
+        self.list_maze.clear()
+
         for i in range(self.size):
             row = self.next_row(
-                row, 'first' if i == 0 else 'last' if i == self.size - 1 else 'mid'
+                row,
+                'first' if i == 0 else 'last' if i == self.size - 1 else 'mid',
             )
-        return self.maze
+        return self.list_maze
+
+    def new_set(self, cell: EllerMazeCell):
+        mark = 1
+
+        while mark in self.sets.keys() and len(self.sets[mark]) > 0:
+            mark += 1
+
+        cell.mark = mark
+
+        if mark not in self.sets.keys():
+            self.sets[mark] = set()
+
+        self.sets[mark].add(cell)
+
+    def add_to_set(
+        self,
+        mark: int,
+        cell: EllerMazeCell,
+    ):
+        union_set = self.sets[mark].union(self.sets[cell.mark])
+
+        self.sets[cell.mark].clear()
+
+        for cell in union_set:
+            cell.mark = mark
+
+        self.sets[mark] = union_set
 
     def create_row(self, row: MazeRow):
         size = self.size
@@ -79,8 +102,7 @@ class EllerMaze:
                 'left': i == 0,
             })
 
-            if cell.cell_set is None:
-                self.new_set(cell)
+            self.new_set(cell)
 
             row.append(cell)
 
@@ -90,6 +112,7 @@ class EllerMaze:
         size = self.size
         for i in range(size):
             cell = row[i]
+            cell_set = self.sets[cell.mark]
 
             # Remove walls between cells
             cell.walls['right'] = i == size - 1
@@ -98,7 +121,7 @@ class EllerMaze:
             # Move cell to unique set if bottom wall
             # Remove bottom wall
             if cell.walls['bottom']:
-                cell.clear_set()
+                cell_set.remove(cell)
                 self.new_set(cell)
                 cell.walls['bottom'] = False
 
@@ -111,44 +134,20 @@ class EllerMaze:
             cell = row[i]
             next_cell = row[i + 1]
 
+            cell_set = self.sets[cell.mark]
+
             # Place bottom walls
             cell.walls['bottom'] = True
             next_cell.walls['bottom'] = True
 
             # Remove walls between cells of different sets
-            if not skip_wall and next_cell not in cell.cell_set:
+            if not skip_wall and next_cell not in cell_set:
                 cell.walls['right'] = False
                 next_cell.walls['left'] = False
-                self.add_to_set(cell, next_cell)
+                self.add_to_set(cell.mark, next_cell)
                 skip_wall = True
 
             skip_wall = False
-
-        return row
-
-    def next_row(
-        self,
-        row: MazeRow,
-        phase: Literal['first', 'last', 'mid'] = 'mid'
-    ) -> dict[EllerMazeCell]:
-        if phase == 'first':
-            row = self.create_row(row)
-            
-        if phase == 'mid' or phase == 'last':
-            row = self.update_row(row)
-        
-        self.add_right_walls(row)
-        self.add_bottom_walls(row)
-
-        if phase == 'last':
-            row = self.finish_row(row)
-
-        self.maze.append([EllerMazeCell(
-            cell.row + 1,
-            cell.col,
-            cell.mark,
-            dict(cell.walls),
-        ) for cell in row])
 
         return row
 
@@ -157,8 +156,10 @@ class EllerMaze:
             cell = row[i]
             next_cell = row[i + 1]
 
+            cell_set = self.sets[cell.mark]
+
             # Divide cells of same set
-            if next_cell in cell.cell_set:
+            if next_cell in cell_set:
                 cell.walls['right'] = True
                 next_cell.walls['left'] = True
                 continue
@@ -169,7 +170,7 @@ class EllerMaze:
                 next_cell.walls['left'] = True
                 continue
 
-            self.add_to_set(cell, next_cell)
+            self.add_to_set(cell.mark, next_cell)
 
     def add_bottom_walls(self, row: MazeRow):
         bottom_path_on_set = False
@@ -178,15 +179,17 @@ class EllerMaze:
             cell = row[i]
             next_cell = row[i + 1]
 
-            # Make sure that there is at least one path to the bottom at each set
-            if len(cell.cell_set) == 1 or (
-                cell.cell_set != next_cell.cell_set
+            cell_set = self.sets[cell.mark]
+
+            # Make sure that there is at least one path to the bottom of each set
+            if len(cell_set) == 1 or (
+                next_cell not in cell_set
                 and not bottom_path_on_set
             ):
                 cell.walls['bottom'] = False
                 bottom_path_on_set = False
                 continue
-            
+
             # Randomly add walls at the bottom
             if random.randint(0, 99) >= 50:
                 cell.walls['bottom'] = True
@@ -195,58 +198,77 @@ class EllerMaze:
             if cell.walls['bottom']:
                 bottom_path_on_set = True
 
-    def new_set(self, cell: EllerMazeCell):
-        mark = 1
-
-        while mark in self.sets.keys() and len(self.sets[mark]) > 0:
-            mark += 1
-
-        cell.mark = mark
-
-        not_present = mark not in self.sets.keys()
-        self.sets[mark] = set() if not_present else self.sets[mark]
-
-        cell.set_cell_set(self.sets[mark])
-
-    def add_to_set(
+    def next_row(
         self,
-        cell: EllerMazeCell,
-        add_cell: EllerMazeCell
-    ):
-        add_cell.clear_set()
-        add_cell.set_cell_set(cell.cell_set)
-        add_cell.mark = cell.mark
+        row: MazeRow,
+        phase: Literal['first', 'last', 'mid'] = 'mid'
+    ) -> dict[EllerMazeCell]:
+        if phase == 'first':
+            row = self.create_row(row)
+
+        if phase == 'mid' or phase == 'last':
+            row = self.update_row(row)
+
+        self.add_right_walls(row)
+        self.add_bottom_walls(row)
+
+        if phase == 'last':
+            row = self.finish_row(row)
+
+        self.list_maze.append([EllerMazeCell(
+            cell.row + 1,
+            cell.col,
+            cell.mark,
+            dict(cell.walls),
+        ) for cell in row])
+
+        return row
+
+    # Maze output
 
     def stringify_maze(self):
         stringified = ''
 
+        mark_len = 0
+
+        for row in self.list_maze:
+            for cell in row:
+                mark_len = max(len(str(cell.mark)), mark_len)
+
         for i in range(self.size):
-            stringified += self.stringify_row(self.maze[i], i == 0, i == self.size - 1)
+            stringified += self.stringify_row(
+                self.list_maze[i],
+                mark_len,
+                i == 0,
+                i == self.size - 1
+            )
 
         return stringified
 
     def stringify_row(
         self,
         row: MazeRow,
+        mark_len: int,
         first: bool = False,
         last: bool = False
     ):
         stringified = ''
 
         if first:
-            stringified = ' ' + ('______' * self.size)[:-1] + '\n'
+            stringified = ' ' + ('_____' * self.size +
+                                 '_' * mark_len * len(row))[:-1] + '\n'
 
         stringified += '|'
         for cell in row:
             stringified += '  '
-            stringified += ' '
+            stringified += ' ' * mark_len
             stringified += '  |' if cell.walls['right'] else '   '
         stringified += '\n'
 
         stringified += '|'
         for cell in row:
             stringified += '  '
-            stringified += str(cell.mark)
+            stringified += f'{cell.mark:0{mark_len}}'
             # stringified += ' '
             stringified += '  |' if cell.walls['right'] else '   '
         stringified += '\n'
@@ -254,7 +276,7 @@ class EllerMaze:
         stringified += '|'
         for cell in row:
             stringified += '__' if cell.walls['bottom'] else '  '
-            stringified += '_' if cell.walls['bottom'] else ' '
+            stringified += ('_' if cell.walls['bottom'] else ' ') * mark_len
             stringified += '__|' if cell.walls['right'] and cell.walls['bottom'] else \
                 '___' if last else \
                 '__ ' if cell.walls['bottom'] else  \
@@ -265,9 +287,8 @@ class EllerMaze:
 
 
 def main():
-    for i in range(5):
-        maze = EllerMaze(9)
-        print(maze.stringify_maze())
+    maze = EllerMaze(10)
+    print(maze.stringify_maze())
 
 
 if __name__ == '__main__':
