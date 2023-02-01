@@ -1,8 +1,12 @@
 
 from __future__ import annotations
+from pathlib import Path
 
 import random
 from typing import Literal, NewType
+
+import numpy as np
+from PIL import Image
 
 
 class EllerMazeCell:
@@ -12,25 +16,19 @@ class EllerMazeCell:
         col: int,
         mark: int = 0,
         walls: Walls = {
-            'top': False,
             'right': False,
             'bottom': False,
-            'left': False,
         },
-        cell_type: Literal['path', 'entrance', 'exit'] = 'path',
     ):
         self.mark = mark
         self.row = row
         self.col = col
         self.walls = walls
-        self.cell_type = cell_type
 
 
 Walls = NewType('Walls', dict[Literal[
-    'top',
     'right',
     'bottom',
-    'left'
 ], bool])
 
 CellSet = NewType('CellSet', set[EllerMazeCell])
@@ -39,12 +37,20 @@ CellSets = NewType('CellSets', dict[int, CellSet])
 
 MazeRow = NewType('MazeRow', list[EllerMazeCell])
 
-ListMaze = NewType('Maze', list[MazeRow])
+ListMaze = NewType('ListMaze', list[list[dict[Literal[
+    'right',
+    'bottom',
+], bool]]])
 
 
 class EllerMaze:
-    def __init__(self, size: int):
-        self.size = min(max(size, 3), 20)
+    MIN_SIZE = 3
+    MAX_SIZE = 20
+
+    def __init__(self, height: int, width: int):
+        self.height = min(max(height, self.MIN_SIZE), self.MAX_SIZE)
+        self.width = min(max(width, self.MIN_SIZE), self.MAX_SIZE)
+
         self.list_maze: ListMaze = []
         self.sets: CellSets = {}
 
@@ -58,11 +64,12 @@ class EllerMaze:
         self.sets.clear()
         self.list_maze.clear()
 
-        for i in range(self.size):
+        for i in range(self.height):
             row = self.next_row(
                 row,
-                'first' if i == 0 else 'last' if i == self.size - 1 else 'mid',
+                'first' if i == 0 else 'last' if i == self.height - 1 else 'mid',
             )
+
         return self.list_maze
 
     def new_set(self, cell: EllerMazeCell):
@@ -93,13 +100,10 @@ class EllerMaze:
         self.sets[mark] = union_set
 
     def create_row(self, row: MazeRow):
-        size = self.size
-        for i in range(size):
+        for i in range(self.width):
             cell = EllerMazeCell(0, i, i + 1, {
-                'top': True,
-                'right': i == size - 1,
+                'right': i == self.width - 1,
                 'bottom': False,
-                'left': i == 0,
             })
 
             self.new_set(cell)
@@ -109,14 +113,12 @@ class EllerMaze:
         return row
 
     def update_row(self, row: MazeRow):
-        size = self.size
-        for i in range(size):
+        for i in range(self.width):
             cell = row[i]
             cell_set = self.sets[cell.mark]
 
             # Remove walls between cells
-            cell.walls['right'] = i == size - 1
-            cell.walls['left'] = i == 0
+            cell.walls['right'] = i == self.width - 1
 
             # Move cell to unique set if bottom wall
             # Remove bottom wall
@@ -128,9 +130,8 @@ class EllerMaze:
         return row
 
     def finish_row(self, row: MazeRow):
-        size = self.size
         skip_wall = False
-        for i in range(size - 1):
+        for i in range(self.width - 1):
             cell = row[i]
             next_cell = row[i + 1]
 
@@ -143,7 +144,6 @@ class EllerMaze:
             # Remove walls between cells of different sets
             if not skip_wall and next_cell not in cell_set:
                 cell.walls['right'] = False
-                next_cell.walls['left'] = False
                 self.add_to_set(cell.mark, next_cell)
                 skip_wall = True
 
@@ -161,13 +161,11 @@ class EllerMaze:
             # Divide cells of same set
             if next_cell in cell_set:
                 cell.walls['right'] = True
-                next_cell.walls['left'] = True
                 continue
 
             # Randomly add walls from the right
             if random.randint(0, 99) >= 50:
                 cell.walls['right'] = True
-                next_cell.walls['left'] = True
                 continue
 
             self.add_to_set(cell.mark, next_cell)
@@ -215,80 +213,104 @@ class EllerMaze:
         if phase == 'last':
             row = self.finish_row(row)
 
-        self.list_maze.append([EllerMazeCell(
-            cell.row + 1,
-            cell.col,
-            cell.mark,
-            dict(cell.walls),
-        ) for cell in row])
+        self.list_maze.append([{
+            'right': cell.walls['right'],
+            'bottom': cell.walls['bottom'],
+        } for cell in row])
 
         return row
 
-    # Maze output
 
-    def stringify_maze(self):
-        stringified = ''
+# Maze output functions
 
-        mark_len = 0
+def draw_maze(
+    list_maze: ListMaze,
+    scale: int = 50,
+    filepath: str or Path = './maze.png'
+):
+    if (height := len(list_maze)) <= 0 \
+            or (width := len(list_maze[0])) <= 0:
+        return
 
-        for row in self.list_maze:
-            for cell in row:
-                mark_len = max(len(str(cell.mark)), mark_len)
+    image_width = width * scale + 1
+    image_height = height * scale + 1
+    image_maze = np.full((image_height, image_width, 3), 255, dtype=np.uint8)
 
-        for i in range(self.size):
-            stringified += self.stringify_row(
-                self.list_maze[i],
-                mark_len,
-                i == 0,
-                i == self.size - 1
-            )
+    # Maze Walls
+    image_maze[0, :image_width] = [0, 0, 0]
+    image_maze[image_height - 1, :image_width] = [0, 0, 0]
+    image_maze[:image_height, 0] = [0, 0, 0]
+    image_maze[:image_height, image_width - 1] = [0, 0, 0]
 
-        return stringified
+    # Cell walls
+    for i in range(1, image_height - 1, scale):
+        for j in range(1, image_width - 1, scale):
+            cell = list_maze[(i - 1) // scale][(j - 1) // scale]
 
-    def stringify_row(
-        self,
-        row: MazeRow,
-        mark_len: int,
-        first: bool = False,
-        last: bool = False
-    ):
-        stringified = ''
+            if cell['right']:
+                image_maze[i - 1: i + scale, j + scale - 1] = [0, 0, 0]
 
-        if first:
-            stringified = ' ' + ('_____' * self.size +
-                                 '_' * mark_len * len(row))[:-1] + '\n'
+            if cell['bottom']:
+                image_maze[i + scale - 1, j - 1: j + scale] = [0, 0, 0]
 
-        stringified += '|'
-        for cell in row:
-            stringified += '  '
-            stringified += ' ' * mark_len
-            stringified += '  |' if cell.walls['right'] else '   '
-        stringified += '\n'
+    Image.fromarray(image_maze).save(filepath)
 
-        stringified += '|'
-        for cell in row:
-            stringified += '  '
-            stringified += f'{cell.mark:0{mark_len}}'
-            # stringified += ' '
-            stringified += '  |' if cell.walls['right'] else '   '
-        stringified += '\n'
 
-        stringified += '|'
-        for cell in row:
-            stringified += '__' if cell.walls['bottom'] else '  '
-            stringified += ('_' if cell.walls['bottom'] else ' ') * mark_len
-            stringified += '__|' if cell.walls['right'] and cell.walls['bottom'] else \
-                '___' if last else \
-                '__ ' if cell.walls['bottom'] else  \
-                '  |' if cell.walls['right'] else '   '
-        stringified += '\n'
+def stringify_maze(list_maze: list[list[dict]]):
+    str_maze = ''
 
-        return stringified
+    height = len(list_maze)
+
+    for i in range(height):
+        str_row = stringify_row(
+            list_maze[i],
+            i == 0,
+            i == height - 1
+        )
+        str_maze += str_row + '\n'
+
+    return str_maze
+
+
+def stringify_row(
+    row: dict[Literal['right', 'bottom', 'mark']: bool],
+    first: bool = False,
+    last: bool = False
+):
+    str_row = ''
+    width = len(row)
+
+    if first:
+        str_row = ' ' + ('_____' * width)[:-1] + '\n'
+
+    str_row += '|'
+    for cell in row:
+        str_row += '  '
+        str_row += ' '
+        str_row += '  |' if cell['right'] else '   '
+    str_row += '\n'
+
+    str_row += '|'
+    for cell in row:
+        str_row += '   '
+        str_row += '  |' if cell['right'] else '   '
+    str_row += '\n'
+
+    str_row += '|'
+    for cell in row:
+        str_row += '__' if cell['bottom'] else '  '
+        str_row += '_' if cell['bottom'] else ' '
+        str_row += '__|' if cell['right'] and cell['bottom'] else \
+            '___' if last else \
+            '__ ' if cell['bottom'] else  \
+            '  |' if cell['right'] else '   '
+
+    return str_row
 
 
 def main():
-    maze = EllerMaze(10)
-    print(maze.stringify_maze())
+    maze = EllerMaze(10, 15)
+    draw_maze(maze.list_maze)
 
 
 if __name__ == '__main__':
