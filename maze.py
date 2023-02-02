@@ -253,31 +253,16 @@ class EllerMaze:
         Args:
             row (MazeRow): First of middle row of maze.
         """
-        bottom_path_on_set = False
-
-        for i in range(len(row) - 1):
-            cell = row[i]
-            next_cell = row[i + 1]
-
+        for cell in row:
             cell_set = self.sets[cell.mark]
-
-            # Make sure that there is at least one path to the bottom of each set
-            if len(cell_set) == 1 or (
-                next_cell not in cell_set
-                and not bottom_path_on_set
-            ):
-                cell.bottom = False
-                bottom_path_on_set = False
-                continue
 
             # Randomly add walls at the bottom
             if random.randint(0, 99) >= 50:
                 cell.bottom = True
-                continue
 
-            # Indicate that there is a path to the bottom
-            if cell.bottom:
-                bottom_path_on_set = True
+            # Make sure that there is at least one path to the bottom of each set
+            if len(cell_set) == 1 or all(cell.bottom for cell in row):
+                cell.bottom = False
 
     def build_next_row(
         self,
