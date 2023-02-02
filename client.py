@@ -1,3 +1,5 @@
+"""Module with CLI"""
+
 import argparse
 import os.path
 
@@ -5,6 +7,9 @@ from maze import EllerMaze, draw_maze, stringify_maze, solve_maze
 
 
 def main():
+    """
+    CLI function.
+    """
     parser = argparse.ArgumentParser(
         prog='EllerMaze-A*',
         description="Program that builds Mazes using Eller's algorithm" +
@@ -37,7 +42,7 @@ def main():
 
     if args.write:
         print('Writing...')
-        with open(args.write, mode='w') as file:
+        with open(args.write, mode='w', encoding='UTF-8') as file:
             file.write(stringified)
 
     if args.image:
@@ -58,14 +63,14 @@ def main():
                 duration=100,
                 loop=0
             )
-    
+
     if args.print:
         print(stringified)
-    
+
     if route and not args.image:
         print('Route:')
         print(' > '.join((f'({x}, {y})' for x, y in route)))
-    
+
     print('Completed!')
 
 
