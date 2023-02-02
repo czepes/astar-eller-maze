@@ -327,7 +327,7 @@ def maze_to_image(list_maze: ListMaze, scale: int = 50):
     return maze_image
 
 
-def draw_path(
+def route_to_image(
     maze_image: MazeImage,
     current: tuple[int, int] = (),
     visited: set(tuple[int, int]) = (),
@@ -358,34 +358,21 @@ def draw_path(
 
 def draw_maze(
     list_maze: ListMaze,
-    path: list[tuple[int, int]] = None,
+    route: list[tuple[int, int]] = None,
     scale: int = 50,
-    filename: str = 'maze'
 ):
     maze_image = maze_to_image(list_maze, scale=scale)
-
     img = Image.fromarray(maze_image)
-    img.save(f'{filename}.png')
 
-    if path:
-        frames = []
+    frames = None
 
-        for idx, cell in enumerate(path):
-            path_img = draw_path(maze_image, cell, path[:idx])
-            frames.append(path_img)
+    if route:
+        frames: list[Image.Image] = []
 
-        path_img.save('path.png')
+        for idx, cell in enumerate(route):
+            frames.append(route_to_image(maze_image, cell, route[:idx]))
 
-        frames[0].save(
-            'path.gif',
-            save_all=True,
-            append_images=frames[1:],
-            optimize=True,
-            duration=100,
-            loop=0
-        )
-
-    return img
+    return (img, frames)
 
 
 def stringify_maze(list_maze: list[list[dict]]):
@@ -437,7 +424,11 @@ def rate_distance(a: tuple[int, int], b: tuple[int, int]):
     return math.sqrt(x**2 + y**2)
 
 
-def solve_maze(graph_maze: GraphMaze, entry: tuple[int, int], exit: tuple[int, int]):
+def solve_maze(
+    graph_maze: GraphMaze,
+    entry: tuple[int, int],
+    exit: tuple[int, int],
+):
     walker = queue.PriorityQueue()
     walker.put((0, entry))
 
@@ -445,8 +436,6 @@ def solve_maze(graph_maze: GraphMaze, entry: tuple[int, int], exit: tuple[int, i
     score_of = {entry: 0}
 
     current = None
-
-    iterations = []
 
     while current != exit and not walker.empty():
         priority, current = walker.get()
@@ -461,14 +450,14 @@ def solve_maze(graph_maze: GraphMaze, entry: tuple[int, int], exit: tuple[int, i
                 score_of[nieghbor] = new_score
                 came_from[nieghbor] = current
 
-    path = []
+    route = []
     current = exit
 
     while current != entry:
-        path.append(current)
+        route.append(current)
         current = came_from[current]
 
-    path.append(entry)
-    path.reverse()
+    route.append(entry)
+    route.reverse()
 
-    return path
+    return route
