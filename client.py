@@ -6,33 +6,42 @@ from maze import EllerMaze, draw_maze, stringify_maze, solve_maze
 
 def main():
     parser = argparse.ArgumentParser(
-        prog='EllerA*Maze',
+        prog='EllerMaze-A*',
         description="Program that builds Mazes using Eller's algorithm" +
         " and solves Mazes using A* algorithm",
     )
-    parser.add_argument('width', help='Number of maze cells in width')
-    parser.add_argument('height', help='Number of maze cells in height')
+    parser.add_argument('width', help='number of maze cells in width')
+    parser.add_argument('height', help='number of maze cells in height')
     parser.add_argument('-s', '--solve', action='store_false',
-                        help='Solve maze and save found route as img')
+                        help='do not solve maze')
     parser.add_argument('-d', '--draw', dest='image',
-                        help='File name to save maze as image')
+                        help='file name to save maze and route as an image')
     parser.add_argument('-p', '--print', action='store_true',
-                        help='Print maze as text')
+                        help='print maze')
+    parser.add_argument('-w', '--write', help='text file to write maze')
 
     args = parser.parse_args()
 
     width, height = map(int, (args.width, args.height))
 
     maze = EllerMaze(width, height)
+    width, height = maze.width, maze.height
+
     route = None
 
+    stringified = stringify_maze(maze.list_maze)
+
     if args.solve:
+        print('Solving...')
         route = solve_maze(maze.as_graph(), (0, 0), (height - 1, width - 1))
 
-    if args.print:
-        print(stringify_maze(maze.list_maze))
+    if args.write:
+        print('Writing...')
+        with open(args.write, mode='w') as file:
+            file.write(stringified)
 
     if args.image:
+        print('Drawing...')
         filepath, ext = os.path.splitext(args.image)
 
         img, frames = draw_maze(maze.list_maze, route)
@@ -49,8 +58,15 @@ def main():
                 duration=100,
                 loop=0
             )
-
-    return
+    
+    if args.print:
+        print(stringified)
+    
+    if route and not args.image:
+        print('Route:')
+        print(' > '.join((f'({x}, {y})' for x, y in route)))
+    
+    print('Completed!')
 
 
 if __name__ == '__main__':
