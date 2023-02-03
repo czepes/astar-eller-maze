@@ -261,7 +261,8 @@ class EllerMaze:
                 cell.bottom = True
 
             # Make sure that there is at least one path to the bottom of each set
-            if len(cell_set) == 1 or all(cell.bottom for cell in row):
+            if len(cell_set) == 1 or \
+                    all(cell.bottom for cell in cell_set):
                 cell.bottom = False
 
     def build_next_row(
@@ -538,7 +539,7 @@ def stringify_row(
 
 # Maze solving functions
 
-def calc_distance(first: GraphCell, second: GraphCell) -> float:
+def distance(first: GraphCell, second: GraphCell) -> float:
     """
     Heuristic function for estimating the distance between two cells.
 
@@ -584,7 +585,7 @@ def solve_maze(
 
         for nieghbor in graph_maze[current]:
             new_score = score_of[current] + 1
-            priority = calc_distance(nieghbor, out) + new_score
+            priority = distance(nieghbor, out) + new_score
 
             if nieghbor not in came_from or new_score < score_of[nieghbor]:
                 walker.put((priority, nieghbor))
@@ -593,7 +594,6 @@ def solve_maze(
                 came_from[nieghbor] = current
 
     route = []
-    current = out
 
     while current != entry:
         route.append(current)
