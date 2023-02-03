@@ -34,6 +34,25 @@ class EllerMazeCell:
         self.bottom = walls['bottom']
         self.left = walls['left']
 
+    def closed(self) -> bool:
+        """
+        Check if cell is surrounded by walls.
+
+        Returns:
+            bool: Closed or not.
+        """
+        return self.top and \
+            self.right and self.bottom and self.left
+
+    def open(self) -> bool:
+        """
+        Check if cell is not closed.
+
+        Returns:
+            bool: Open or not.
+        """
+        return not self.closed()
+
 
 Walls = NewType('Walls', dict[Literal[
     'top',
@@ -66,7 +85,7 @@ class EllerMaze:
     """
     Maze built with Eller's algorithm.
     """
-    MIN_SIZE = 3
+    MIN_SIZE = 2
     MAX_SIZE = 100
 
     def __init__(self, width: int, height: int):
@@ -350,12 +369,16 @@ COLORS = {
     'current': ImageColor.getrgb('deeppink'),
 }
 
+DEFAULT_SCALE = 15
+MIN_SCALE = 2
+MAX_SCALE = 30
+
 MazeImage = NewType('MazeImage', np.ndarray[np.ndarray[
     np.ndarray[np.uint8]
 ]])
 
 
-def maze_to_image(list_maze: ListMaze, scale: int = 50) -> MazeImage:
+def maze_to_image(list_maze: ListMaze, scale: int = DEFAULT_SCALE) -> MazeImage:
     """
     Convert maze to the array of pixels.
 
@@ -402,7 +425,7 @@ def route_to_image(
     maze_image: MazeImage,
     current: GraphCell = (),
     visited: Route = (),
-    scale: int = 50,
+    scale: int = DEFAULT_SCALE,
 ) -> MazeImage:
     """
     Convert maze solve route into array of pixels.
@@ -446,7 +469,7 @@ def route_to_image(
 def draw_maze(
     list_maze: ListMaze,
     route: Route = None,
-    scale: int = 50,
+    scale: int = DEFAULT_SCALE,
 ) -> tuple[Image.Image, list[Image.Image]]:
     """
     Draw maze and route.
@@ -469,7 +492,7 @@ def draw_maze(
 
         for idx, cell in enumerate(route):
             frames.append(Image.fromarray(
-                route_to_image(maze_image, cell, route[:idx])
+                route_to_image(maze_image, cell, route[:idx], scale=scale)
             ))
 
     return (img, frames)
@@ -583,15 +606,15 @@ def solve_maze(
     while current != out and not walker.empty():
         priority, current = walker.get()
 
-        for nieghbor in graph_maze[current]:
+        for neighbor in graph_maze[current]:
             new_score = score_of[current] + 1
-            priority = distance(nieghbor, out) + new_score
+            priority = distance(neighbor, out) + new_score
 
-            if nieghbor not in came_from or new_score < score_of[nieghbor]:
-                walker.put((priority, nieghbor))
+            if neighbor not in came_from or new_score < score_of[neighbor]:
+                walker.put((priority, neighbor))
 
-                score_of[nieghbor] = new_score
-                came_from[nieghbor] = current
+                score_of[neighbor] = new_score
+                came_from[neighbor] = current
 
     route = []
 
