@@ -37,19 +37,19 @@ def main():
 
     solve_parser = subparsers.add_parser('solve', help='solve maze')
     solve_parser.add_argument(
-        'xs', nargs='?', type=int, default=EllerMaze.MIN_SIZE,
+        'xs', nargs='?', type=int, default=0,
         help='where to start on x axes [default: 0]'
     )
     solve_parser.add_argument(
-        'ys', nargs='?', type=int, default=EllerMaze.MIN_SIZE,
+        'ys', nargs='?', type=int, default=0,
         help='where to start on y axes [default: 0]'
     )
     solve_parser.add_argument(
-        'xe', nargs='?', type=int, default=EllerMaze.MAX_SIZE,
+        'xe', nargs='?', type=int, default=EllerMaze.MAX_SIZE - 1,
         help='where to end on x axes [default: width - 1]'
     )
     solve_parser.add_argument(
-        'ye', nargs='?', type=int, default=EllerMaze.MAX_SIZE,
+        'ye', nargs='?', type=int, default=EllerMaze.MAX_SIZE - 1,
         help='where to end on y axes [default: height - 1]'
     )
 
@@ -90,10 +90,10 @@ def run(args: argparse.Namespace):
     maze = EllerMaze(args.width, args.height)
     width, height = maze.width, maze.height
 
-    def parse_coord(row: int, col: int):
+    def parse_coord(col: int, row: int):
         return (
-            min(max(col, 0), height - 1),
-            min(max(row, 0), width - 1),
+            min(max(row, 0), height - 1),
+            min(max(col, 0), width - 1),
         )
 
     route = None

@@ -371,7 +371,7 @@ COLORS = {
 
 DEFAULT_SCALE = 15
 MIN_SCALE = 2
-MAX_SCALE = 30
+MAX_SCALE = 50
 
 MazeImage = NewType('MazeImage', np.ndarray[np.ndarray[
     np.ndarray[np.uint8]
